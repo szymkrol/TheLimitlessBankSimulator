@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.2)
+cmake_minimum_required(VERSION 4.1.2)
 project(TheLimitlessBankSimulator C)
 
 set(CMAKE_C_STANDARD 11)
@@ -11,7 +11,8 @@ include_directories(src)
 
 add_executable(TheLimitlessBankSimulator
         include/db_manager.h
-        src/db_manager.cpp
-        src/db_manager.cpp
+        src/db_manager.c
+        src/db_manager.c
         include/structures.h
-        src/db_manager.cpp)
+        src/db_manager.c
+        src/main.c)
