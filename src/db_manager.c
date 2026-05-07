@@ -18,7 +18,7 @@ int get_file_descriptor(const char *table_name, const int flag) {
     return f;
 }
 
-int create_table(const char *table_name, const int f) {
+int create_table(int f) {
     // const int f = get_file_descriptor(table_name, O_CREAT | O_WRONLY);
     if (f == -1) {
         perror("Error creating file");
@@ -45,7 +45,7 @@ int create_table(const char *table_name, const int f) {
     return 1;
 }
 
-long get_num_entries(const char *table_name, const int f) {
+long get_num_entries(const int f) {
     // const int f = get_file_descriptor(table_name, O_CREAT | O_WRONLY);
 
     long entry_count = 0;
@@ -65,7 +65,7 @@ long get_num_entries(const char *table_name, const int f) {
     return entry_count;
 }
 
-int add_entry(const char* table_name, const void* structure, const int entry_size, const int f) {
+int add_entry(const void* structure, const int entry_size, const int f) {
     // Entries are stored in such a way that in the beginning there is a long signifying current entry count.
 
     // const int f = get_file_descriptor(table_name, O_RDWR);
@@ -106,7 +106,7 @@ int add_entry(const char* table_name, const void* structure, const int entry_siz
     return 1;
 }
 
-void* get_entry(const char *table_name, const int index, const int entry_size, const int f) {
+void* get_entry(const int index, const int entry_size, const int f) {
     // int f = get_file_descriptor(table_name, O_RDONLY);
     // if (f == -1) {
     //     perror("Error opening file");
@@ -133,7 +133,7 @@ void* get_entry(const char *table_name, const int index, const int entry_size, c
     return ptr;
 }
 
-int modify_entry(const char *table_name, const void *structure, const int entry_size, const int index, const int f) {
+int modify_entry(const void *structure, const int entry_size, const int index, const int f) {
     // const int f = get_file_descriptor(table_name, O_RDWR);
     // if (f == -1) {
     //     perror("Error opening file");
