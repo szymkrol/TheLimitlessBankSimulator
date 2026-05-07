@@ -21,4 +21,4 @@ add_executable(TheLimitlessBankSimulator
         src/client.c
         include/client.h
         src/communication.c
-        src/communication.h)
+        include/communication.h)

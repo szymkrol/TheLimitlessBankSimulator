@@ -6,6 +6,7 @@
 #define THELIMITLESSBANKSIMULATOR_STRUCTURES_H
 
 #include <stdbool.h>
+
 typedef struct {
     const int id;
     int balance;
@@ -14,8 +15,8 @@ typedef struct {
 
 typedef struct {
     const int id;
-    const char* login;
-    const char* password;
+    const char *login;
+    const char *password;
 } User;
 
 typedef struct {
@@ -24,5 +25,13 @@ typedef struct {
     const int destination_id;
     const int amount;
 } Transaction;
+
+enum Operation {
+    AUTHENTICATE,
+    GET_BALANCE,
+    DEPOSIT,
+    WITHDRAW,
+    TRANSFER
+};
 
 #endif //THELIMITLESSBANKSIMULATOR_STRUCTURES_H
