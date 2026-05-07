@@ -17,4 +17,8 @@ add_executable(TheLimitlessBankSimulator
         src/db_manager.c
         src/main.c
         src/server.c
-        include/server.h)
+        include/server.h
+        src/client.c
+        include/client.h
+        src/communication.c
+        src/communication.h)
