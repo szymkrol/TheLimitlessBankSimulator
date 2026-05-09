@@ -1,6 +1,7 @@
 //
 // Created by Szymon Król on 06.05.2026.
 //
+#define _GNU_SOURCE
 #include "db_manager.h"
 
 #include <stdio.h>
@@ -9,10 +10,31 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+int lock_record(const int f, const short type, const long offset, const long len) {
+    struct flock lock = {0};
+    lock.l_type = type;
+    lock.l_whence = SEEK_SET;
+    lock.l_start = offset;
+    lock.l_len = len;
+
+    if (fcntl(f, F_OFD_SETLKW, &lock) == -1) {
+        perror("Locking failed");
+        return -1;
+    }
+    return 0;
+}
+
+int unlock_record(const int f, const long offset, const long len) {
+    return lock_record(f, F_UNLCK, offset, len);
+}
+
 int get_file_descriptor(const char *table_name, const int flag) {
     char path_begin[] = "data/";
-    char *path = malloc(sizeof(char) * (strlen(path_begin) + strlen(table_name) + 1));
-    snprintf(path, sizeof(char) * (strlen(path_begin) + strlen(table_name) + 1), "%s%s", path_begin, table_name);
+    const size_t path_len = strlen(path_begin) + strlen(table_name) + 1;
+    char *path = malloc(path_len);
+    if (!path) return -1;
+
+    snprintf(path, path_len, "%s%s", path_begin, table_name);
     const int f = open(path, flag, 0644);
     free(path);
     return f;
@@ -25,58 +47,35 @@ int create_table(int f) {
     }
 
     const long entry_count = 0;
-    struct flock lock = {0};
-    lock.l_type = F_WRLCK;
-    lock.l_whence = SEEK_SET;
-    lock.l_len = sizeof(long);
-
-    if (fcntl(f, F_SETLKW, &lock) == -1) {
-        perror("Locking failed");
-        return -4;
-    }
-
+    lock_record(f, F_WRLCK, 0, sizeof(long));
     pwrite(f, &entry_count, sizeof(long), 0);
-
-    lock.l_type = F_UNLCK;
-    fcntl(f, F_SETLK, &lock);
+    unlock_record(f, 0, sizeof(long));
     return 1;
 }
 
-long get_num_entries(const int f) {
+long get_num_entries(const int f, const int use_lock) {
     long entry_count = 0;
-    struct flock lock = {0};
-    lock.l_type = F_RDLCK;
-    lock.l_whence = SEEK_SET;
-    lock.l_len = sizeof(long);
-
-    if (fcntl(f, F_SETLKW, &lock) == -1) {
-        perror("Locking failed");
-        return -4;
-    }
-
-    pread(f, &entry_count, sizeof(long), 0);
-
-    lock.l_type = F_UNLCK;
-    fcntl(f, F_SETLK, &lock);
-    return entry_count;
-}
-
-int add_entry(const void *structure, const int entry_size, const int f) {
-    long entry_count;
-    struct flock lock = {0};
-    lock.l_type = F_WRLCK;
-    lock.l_whence = SEEK_SET;
-    lock.l_len = sizeof(long);
-
-    if (fcntl(f, F_SETLKW, &lock) == -1) {
-        perror("Locking failed");
-        return -4;
+    if (use_lock) {
+        lock_record(f, F_RDLCK, 0, sizeof(long));
     }
 
     if (pread(f, &entry_count, sizeof(long), 0) != sizeof(long)) {
-        perror("Couldn't read entry count / EOF reached");
-        lock.l_type = F_UNLCK;
-        fcntl(f, F_SETLK, &lock);
+        entry_count = 0;
+    }
+    if (use_lock) {
+        unlock_record(f, 0, sizeof(long));
+    }
+    return entry_count;
+}
+
+int add_entry(const void *structure, const int entry_size, const int f, const int use_lock) {
+    long entry_count;
+    if (use_lock) {
+        lock_record(f, F_WRLCK, 0, sizeof(long));
+    }
+
+    if (pread(f, &entry_count, sizeof(long), 0) != sizeof(long)) {
+        unlock_record(f, 0, sizeof(long));
         return -3;
     }
 
@@ -84,49 +83,53 @@ int add_entry(const void *structure, const int entry_size, const int f) {
     ++entry_count;
     pwrite(f, &entry_count, sizeof(long), 0);
 
-    lock.l_type = F_UNLCK;
-    fcntl(f, F_SETLK, &lock);
+    if (use_lock) {
+        unlock_record(f, 0, sizeof(long));
+    }
     return 1;
 }
 
-void *get_entry(const long index, const int entry_size, const int f) {
-    struct flock lock = {0};
-    lock.l_type = F_RDLCK;
-    lock.l_whence = SEEK_SET;
-    lock.l_start = sizeof(long) + (index * entry_size);
-    lock.l_len = entry_size;
+void *get_entry(const long index, const int entry_size, const int f, const int use_lock) {
+    const long offset = sizeof(long) + (index * entry_size);
 
-    if (fcntl(f, F_SETLKW, &lock) == -1) {
-        perror("Locking failed");
-        return NULL;
+    if (use_lock) {
+        lock_record(f, F_RDLCK, offset, entry_size);
     }
 
     void *ptr = malloc(entry_size);
     if (ptr) {
-        pread(f, ptr, entry_size, sizeof(long) + (index * entry_size));
+        if (pread(f, ptr, entry_size, offset) != entry_size) {
+            free(ptr);
+            ptr = NULL;
+        }
     }
 
-    lock.l_type = F_UNLCK;
-    fcntl(f, F_SETLK, &lock);
+    if (use_lock) {
+        unlock_record(f, offset, entry_size);
+    }
     return ptr;
 }
 
-int modify_entry(const void *structure, const int entry_size, const long index, const int f) {
-    struct flock lock = {0};
-    lock.l_type = F_WRLCK;
-    lock.l_whence = SEEK_SET;
-    lock.l_start = sizeof(long) + (index * entry_size);
-    lock.l_len = entry_size;
+int modify_entry(const void *structure, const int entry_size, const long index, const int f, const int use_lock) {
+    const long offset = sizeof(long) + (index * entry_size);
 
-    if (fcntl(f, F_SETLKW, &lock) == -1) {
-        perror("Locking failed");
-        return -4;
+    if (use_lock) {
+        lock_record(f, F_WRLCK, offset, entry_size);
     }
 
-    pwrite(f, structure, entry_size, sizeof(long) + (index * entry_size));
+    const ssize_t written = pwrite(f, structure, entry_size, offset);
 
-    lock.l_type = F_UNLCK;
-    fcntl(f, F_SETLK, &lock);
-    return 1;
+    if (use_lock) {
+        unlock_record(f, offset, entry_size);
+    }
+
+    return (written == entry_size) ? 1 : -1;
 }
 
+int lock_account(const int fd, const long user_id, const ssize_t account_size) {
+    return lock_record(fd, F_WRLCK, sizeof(long) + (user_id * account_size), account_size);
+}
+
+int unlock_account(const int fd, const long user_id, const ssize_t account_size) {
+    return unlock_record(fd, sizeof(long) + (user_id * account_size), account_size);
+}

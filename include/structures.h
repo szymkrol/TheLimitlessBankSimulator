@@ -14,9 +14,9 @@ typedef struct {
 } Account;
 
 typedef struct {
-    const int id;
-    const char *login;
-    const char *password;
+    const long id;
+    char login[256];
+    char password[256];
 } User;
 
 typedef struct {
@@ -31,7 +31,8 @@ enum Operation {
     GET_BALANCE,
     DEPOSIT,
     WITHDRAW,
-    TRANSFER
+    TRANSFER,
+    CREATE_USER
 };
 
 #endif //THELIMITLESSBANKSIMULATOR_STRUCTURES_H

@@ -22,8 +22,14 @@ int send_data(const int fd, const void *data, const ssize_t size) {
 
 void *receive_data(const int fd) {
     ssize_t msg_size = 0;
-    if (read(fd, &msg_size, sizeof(ssize_t)) != sizeof(ssize_t)) {
-        perror("Error when receiving message size.");
+    const ssize_t n = read(fd, &msg_size, sizeof(size_t));
+
+    if (n == 0) {
+        return NULL;
+    }
+
+    if (n < 0) {
+        perror("Read failed (network error)");
         return NULL;
     }
 
