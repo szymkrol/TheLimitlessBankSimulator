@@ -117,7 +117,7 @@ int run_client() {
     long user_id = -1;
     int choice;
 
-    printf("--- Welcome to The Limitless Bank ---\n");
+    printf("Welcome to The Limitless Bank\n");
     while (user_id < 0) {
         printf("\n1. Login\n2. Create Account\n0. Exit\nChoice: ");
         if (scanf("%d", &choice) != 1 || choice == 0) {

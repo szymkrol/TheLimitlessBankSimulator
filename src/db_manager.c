@@ -1,6 +1,7 @@
 //
 // Created by Szymon Król on 06.05.2026.
 //
+
 #define _GNU_SOURCE
 #include "db_manager.h"
 
@@ -75,7 +76,9 @@ int add_entry(const void *structure, const int entry_size, const int f, const in
     }
 
     if (pread(f, &entry_count, sizeof(long), 0) != sizeof(long)) {
-        unlock_record(f, 0, sizeof(long));
+        if (use_lock) {
+            unlock_record(f, 0, sizeof(long));
+        }
         return -3;
     }
 

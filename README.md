@@ -64,3 +64,39 @@ Aplikacja została wyposażona w mechanizm „bezpiecznego wyłączania” (Grac
 W całym projekcie (szczególnie w logice komunikacji i dostępu do bazy danych) stosowana jest dynamiczna alokacja
 pamięci (`malloc`, `free`). Pozwala to na elastyczne wczytywanie rekordów użytkowników oraz odbieranie komunikatów
 sieciowych o dowolnym rozmiarze bez ryzyka przepełnienia bufora.
+
+## 3. Jak korzystać
+
+### Budowanie projektu
+
+```bash
+make
+```
+
+### Uruchomienie serwera
+
+```bash
+./TheLimitlessBankSimulator server
+```
+
+Serwer uruchamia się na porcie `8080`. Aby go zatrzymać, naciśnij `Ctrl+C` — serwer poczeka na zakończenie wszystkich aktywnych sesji przed wyłączeniem.
+
+### Uruchomienie klienta
+
+W osobnym terminalu:
+
+```bash
+./TheLimitlessBankSimulator client
+```
+
+### Dostępne operacje
+
+Po zalogowaniu dostępne są następujące opcje:
+
+| Opcja | Opis            |
+|-------|-----------------|
+| `1`   | Sprawdź saldo   |
+| `2`   | Wpłać środki    |
+| `3`   | Wypłać środki   |
+| `4`   | Wykonaj przelew |
+| `0`   | Wyjdź           |

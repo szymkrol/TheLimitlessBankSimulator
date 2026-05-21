@@ -27,15 +27,15 @@ void log_info(const char *msg) {
     printf("[Thread %lu] %s\n", (unsigned long) pthread_self(), msg);
 }
 
-int record_transaction(const int src, const int dest, const int amount, const int fd_trans) {
+int record_transaction(const long src, const long dest, const int amount, const int fd_trans) {
     lock_record(fd_trans, F_WRLCK, 0, sizeof(long));
 
     const long current_id = get_num_entries(fd_trans, 0);
     const Transaction t = {
-        .transaction_id = (int) current_id,
-        .source_id = src,
-        .destination_id = dest,
-        .amount = amount
+        .transaction_id  = (int) current_id,
+        .source_id       = src,
+        .destination_id  = dest,
+        .amount          = amount
     };
 
     const int res = add_entry(&t, sizeof(Transaction), fd_trans, 0);
@@ -47,7 +47,8 @@ int record_transaction(const int src, const int dest, const int amount, const in
         return -1;
     }
 
-    printf("[DB] Transaction logged: ID %ld, Src %d, Dest %d, Amount %d\n", current_id, src, dest, amount);
+    printf("[DB] Transaction %ld: Src %ld, Dest %ld, Amount %d\n",
+           current_id, src, dest, amount);
     return 1;
 }
 
@@ -63,8 +64,11 @@ int get_balance(const long user_id, const int fd_accounts) {
 }
 
 int change_balance(const long user_id, const int amount, const int fd_accounts) {
-    Account *ptr = (Account *) get_entry(user_id, sizeof(Account), fd_accounts, 1);
+    lock_account(fd_accounts, user_id, sizeof(Account));
+
+    Account *ptr = (Account *) get_entry(user_id, sizeof(Account), fd_accounts, 0);
     if (!ptr) {
+        unlock_account(fd_accounts, user_id, sizeof(Account));
         perror("Database reading error");
         return -1;
     }
@@ -72,12 +76,14 @@ int change_balance(const long user_id, const int amount, const int fd_accounts) 
     if (amount < 0 && (ptr->balance + amount < 0)) {
         log_info("Operation failed: Insufficient funds");
         free(ptr);
+        unlock_account(fd_accounts, user_id, sizeof(Account));
         return -2;
     }
 
     ptr->balance += amount;
-    const int res = modify_entry(ptr, sizeof(Account), user_id, fd_accounts, 1);
+    const int res = modify_entry(ptr, sizeof(Account), user_id, fd_accounts, 0);
     free(ptr);
+    unlock_account(fd_accounts, user_id, sizeof(Account));
 
     if (res <= 0) {
         perror("Couldn't complete operation");
@@ -97,25 +103,38 @@ int handle_create_user(const int socket, const int fd_users, const int fd_accoun
 
         const long new_id = get_num_entries(fd_users, 0);
 
+        int duplicate = 0;
+        for (long i = 0; i < new_id; i++) {
+            User *existing = (User *) get_entry(i, sizeof(User), fd_users, 0);
+            if (existing) {
+                if (strcmp(existing->login, received_login) == 0) {
+                    duplicate = 1;
+                }
+                free(existing);
+                if (duplicate) {
+                    break;
+                }
+            }
+        }
 
-        const User new_u = {
-            .id = new_id
-        };
+        if (!duplicate) {
+            User new_u   = { .id = new_id };
+            Account new_acc = { .id = (int) new_id, .balance = 0 };
 
-        strncpy((char *) new_u.login, received_login, 255);
-        strncpy((char *) new_u.password, received_password, 255);
+            strncpy(new_u.login,    received_login,    255);
+            new_u.login[255] = '\0';
+            strncpy(new_u.password, received_password, 255);
+            new_u.password[255] = '\0';
 
-        const Account new_acc = {
-            .id = (int) new_id,
-            .balance = 0
-        };
-
-        if (add_entry(&new_u, sizeof(User), fd_users, 0) > 0 &&
-            add_entry(&new_acc, sizeof(Account), fd_accounts, 0) > 0) {
-            result = 1;
-            printf("[AUTH] User created successfully: %s (ID: %ld)\n", received_login, new_id);
+            if (add_entry(&new_u,   sizeof(User),    fd_users,    0) > 0 &&
+                add_entry(&new_acc, sizeof(Account), fd_accounts, 0) > 0) {
+                result = 1;
+                printf("[AUTH] User created: %s (ID: %ld)\n", received_login, new_id);
+            } else {
+                log_info("Error: Failed to add user to database");
+            }
         } else {
-            log_info("Error: Failed to add user to database");
+            printf("[AUTH] Creation failed: login '%s' already taken\n", received_login);
         }
 
         unlock_record(fd_users, 0, sizeof(long));
@@ -431,14 +450,8 @@ void *connection_handler(void *args) {
     const int socket = t_args->socket_desc;
     free(t_args);
 
-    if (access("data/users.db", F_OK) == -1 ||
-        access("data/accounts.db", F_OK) == -1 ||
-        access("data/transactions.db", F_OK) == -1) {
-        init();
-    }
-
-    const int fd_users = get_file_descriptor("users.db", O_RDWR);
-    const int fd_accounts = get_file_descriptor("accounts.db", O_RDWR);
+    const int fd_users = get_file_descriptor("users.db",        O_RDWR);
+    const int fd_accounts = get_file_descriptor("accounts.db",     O_RDWR);
     const int fd_transactions = get_file_descriptor("transactions.db", O_RDWR);
 
     if (fd_users > 0 && fd_accounts > 0 && fd_transactions > 0) {

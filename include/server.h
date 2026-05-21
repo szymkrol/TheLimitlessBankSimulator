@@ -13,14 +13,11 @@ extern pthread_mutex_t count_mutex;
 
 typedef struct {
     int socket_desc;
-    int fd_users;
-    int fd_accounts;
-    int fd_transactions;
 } thread_args;
 
 void log_info(const char *msg);
 
-int record_transaction(int src, int dest, int amount, int fd_trans);
+int record_transaction(long src, long dest, int amount, int fd_trans);
 
 int get_balance(long user_id, int fd_accounts);
 

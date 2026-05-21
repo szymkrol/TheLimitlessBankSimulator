@@ -8,22 +8,22 @@
 #include <stdbool.h>
 
 typedef struct {
-    const int id;
+    int id;
     int balance;
     bool is_active;
 } Account;
 
 typedef struct {
-    const long id;
+    long id;
     char login[256];
     char password[256];
 } User;
 
 typedef struct {
-    const int transaction_id;
-    const int source_id;
-    const int destination_id;
-    const int amount;
+    int transaction_id;
+    long source_id;
+    long destination_id;
+    int amount;
 } Transaction;
 
 enum Operation {
