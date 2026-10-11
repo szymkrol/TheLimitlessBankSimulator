@@ -1,102 +1,85 @@
-# Dokumentacja projektu: Symulator bankomatu - "The Limitless Bank"
+# Project Documentation: ATM Simulator - "The Limitless Bank"
 
-Autor: Szymon Król
+Author: Szymon Król
 
-## 1. Wstęp
+## 1. Introduction
 
-Projekt stanowi symulację systemu bankowego opartego na architekturze klient-serwer. Aplikacja umożliwia użytkownikom
-zdalne zarządzanie kontem bankowym (logowanie, sprawdzanie salda, wpłaty, wypłaty oraz przelewy). System został
-zaprojektowany z myślą o bezpiecznej obsłudze wielu klientów jednocześnie, dbając o spójność bazy danych zapisanej w
-plikach binarnych.
+The project is a simulation of a banking system based on a client-server architecture. The application allows users to remotely manage their bank accounts (logging in, checking balances, depositing, withdrawing, and transferring funds). The system was designed to securely handle multiple clients simultaneously while ensuring the consistency of the database stored in binary files.
 
-## 2. Architektura i wykorzystane konstrukcje
+## 2. Architecture and Employed Mechanisms
 
-### Komunikacja sieciowa (Sokety)
+### Network Communication (Sockets)
 
-Podstawą komunikacji między klientem a serwerem są sokety komunikacji sieciowej.
+The foundation of communication between the client and the server is network sockets.
 
-* **W pliku `server.h`/`server.c`**: Serwer tworzy gniazdo, wiąże je z portem i przechodzi w stan
-  nasłuchiwania.
-* **W pliku `client.c`**: Klient nawiązuje połączenie z serwerem za pomocą funkcji `connect`.
-* **Protokół**: Implementacja w `communication.c` definiuje własny sposób przesyłania danych. Każda wiadomość
-  poprzedzona jest rozmiarem (`ssize_t`), co pozwala na przesyłanie dynamicznych struktur danych i ciągów znaków o
-  zmiennej długości.
+- **In the `server.h`/`server.c` file**: The server creates a socket, binds it to a port, and enters the listening state.
+- **In the `client.c` file**: The client establishes a connection with the server using the `connect` function.
+- **Protocol**: The implementation in `communication.c` defines a custom method of data transmission. Each message is preceded by its size (`ssize_t`), which allows for sending dynamic data structures and variable-length strings.
 
-### Wielowątkowość (Pthreads)
+### Multithreading (Pthreads)
 
-Serwer jest wielowątkowy, co pozwala na równoległą obsługę wielu klientów.
+The server is multithreaded, enabling parallel handling of multiple clients.
 
-* **Tworzenie wątków**: Każde nowe połączenie skutkuje utworzeniem nowego wątku, który
-  deleguje obsługę sesji do funkcji `connection_handler`.
+- **Thread creation**: Each new connection results in the creation of a new thread, which delegates session handling to the `connection_handler` function.
 
-### Synchronizacja i bezpieczeństwo danych
+### Synchronization and Data Security
 
-Ze względu na współbieżny dostęp do plików bazy danych, zaimplementowano mechanizmy blokowania:
+Due to concurrent access to database files, locking mechanisms have been implemented:
 
-* **Mutexy**: Globalny licznik aktywnych połączeń (`active_threads`) jest chroniony za pomocą `pthread_mutex_t`, co
-  zapobiega wyścigom podczas monitorowania stanu serwera.
-* **Blokowanie rekordów**: W module `db_manager.c` wykorzystano funkcję `fcntl`.
-  System blokuje konkretne zakresy bajtów (rekordy), co pozwala wielu
-  użytkownikom pracować na bazie danych jednocześnie, o ile nie modyfikują tego samego konta.
-* **Unikanie zakleszczeń**: Przy operacjach przelewu, gdzie wymagane jest zablokowanie dwóch kont
-  jednocześnie, system zawsze zakłada blokady w kolejności rosnących identyfikatorów kont.
+- **Mutexes**: The global active connections counter (`active_threads`) is protected using a `pthread_mutex_t`, which prevents race conditions when monitoring the server state.
+- **Record locking**: The `fcntl` function is utilized in the `db_manager.c` module. The system locks specific byte ranges (records), allowing multiple users to operate on the database simultaneously, provided they are not modifying the same account.
+- **Deadlock avoidance**: During transfer operations, where locking two accounts simultaneously is required, the system always acquires locks in the order of ascending account identifiers.
 
-### Zarządzanie plikami i trwałość danych
+### File Management and Data Persistence
 
-System przechowuje dane w plikach binarnych (`.db`).
+The system stores data in binary files (`.db`).
 
-* **Operacje wejścia/wyjścia**: Wykorzystano niskopoziomowe funkcje systemowe takie jak `open`, `close`, `pread` oraz
-  `pwrite`.
-* **Zarządzanie strukturą**: Pliki posiadają nagłówek przechowujący liczbę rekordów, co pozwala na szybkie obliczanie
-  offsetów dla konkretnych ID użytkowników.
+- **I/O Operations**: Low-level system functions such as `open`, `close`, `pread`, and `pwrite` are used.
+- **Structure management**: Files feature a header storing the number of records, allowing for rapid calculation of offsets for specific user IDs.
 
-### Obsługa sygnałów
+### Signal Handling
 
-Aplikacja została wyposażona w mechanizm „bezpiecznego wyłączania” (Graceful Shutdown).
+The application has been equipped with a Graceful Shutdown mechanism.
 
-* **SIGINT**: Serwer przechwytuje sygnał przerwania (Ctrl+C) za pomocą `sigaction`.
-* Wątki robocze mają zablokowaną obsługę sygnału `SIGINT` (`pthread_sigmask`), dzięki czemu tylko główny
-  wątek steruje procesem zamykania, czekając na zakończenie wszystkich aktywnych sesji przed ostatecznym wyjściem z
-  programu.
+- **SIGINT**: The server intercepts the interrupt signal (Ctrl+C) using `sigaction`.
+- Worker threads have `SIGINT` signal handling blocked (`pthread_sigmask`), so that only the main thread controls the shutdown process, waiting for all active sessions to terminate before finally exiting the program.
 
-### Dynamiczne zarządzanie pamięcią
+### Dynamic Memory Management
 
-W całym projekcie (szczególnie w logice komunikacji i dostępu do bazy danych) stosowana jest dynamiczna alokacja
-pamięci (`malloc`, `free`). Pozwala to na elastyczne wczytywanie rekordów użytkowników oraz odbieranie komunikatów
-sieciowych o dowolnym rozmiarze bez ryzyka przepełnienia bufora.
+Dynamic memory allocation (`malloc`, `free`) is used throughout the project (especially in the communication and database access logic). This allows for flexible loading of user records and receiving network messages of arbitrary size without the risk of buffer overflows.
 
-## 3. Jak korzystać
+## 3. How to Use
 
-### Budowanie projektu
+### Building the Project
 
 ```bash
 make
 ```
 
-### Uruchomienie serwera
+### Running the Server
 
 ```bash
 ./TheLimitlessBankSimulator server
 ```
 
-Serwer uruchamia się na porcie `8080`. Aby go zatrzymać, naciśnij `Ctrl+C` — serwer poczeka na zakończenie wszystkich aktywnych sesji przed wyłączeniem.
+The server starts on port `8080`. To stop it, press `Ctrl+C` — the server will wait for all active sessions to close before shutting down.
 
-### Uruchomienie klienta
+### Running the Client
 
-W osobnym terminalu:
+In a separate terminal:
 
 ```bash
 ./TheLimitlessBankSimulator client
 ```
 
-### Dostępne operacje
+### Available Operations
 
-Po zalogowaniu dostępne są następujące opcje:
+The following options are available after logging in:
 
-| Opcja | Opis            |
-|-------|-----------------|
-| `1`   | Sprawdź saldo   |
-| `2`   | Wpłać środki    |
-| `3`   | Wypłać środki   |
-| `4`   | Wykonaj przelew |
-| `0`   | Wyjdź           |
+| Option | Description       |
+|--------|-------------------|
+| `1`    | Check balance     |
+| `2`    | Deposit funds     |
+| `3`    | Withdraw funds    |
+| `4`    | Transfer funds    |
+| `0`    | Exit              |
